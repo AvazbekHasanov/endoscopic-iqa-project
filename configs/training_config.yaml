@@ -1,0 +1,75 @@
+# Model Configuration
+model:
+  type: 'lightweight'  # Options: 'lightweight', 'full'
+  base_channels: 32
+  use_attention: true
+  num_classes: 1
+  
+# Data Configuration
+data:
+  data_dir: 'data/datasets'
+  image_size: [224, 224]
+  batch_size: 32
+  num_workers: 4
+  
+  # Data split
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  
+  # Augmentation
+  use_augmentation: true
+  augmentation_mode: 'endoscopic'  # Options: 'light', 'aggressive', 'endoscopic'
+  
+  # Synthetic degradation
+  use_degradation: true
+  degradation_types:
+    - 'motion_blur'
+    - 'defocus_blur'
+    - 'gaussian_noise'
+    - 'poisson_noise'
+    - 'illumination'
+    - 'specular'
+    - 'color_distortion'
+  severity_range: [0.1, 0.9]
+
+# Training Configuration
+training:
+  num_epochs: 100
+  early_stopping_patience: 15
+  
+  # Optimizer
+  optimizer:
+    name: 'adamw'
+    learning_rate: 0.001
+    weight_decay: 0.0001
+  
+  # Learning rate scheduler
+  scheduler:
+    name: 'cosine'  # Options: 'cosine', 'step', 'plateau', 'exponential'
+    # For cosine: T_max is set to num_epochs
+    # For step: step_size=30, gamma=0.1
+    # For plateau: mode='min', patience=10, factor=0.1
+  
+  # Loss function
+  loss:
+    name: 'combined'  # Options: 'mse', 'l1', 'combined'
+    mse_weight: 1.0
+    l1_weight: 0.5
+  
+  # Logging
+  log_interval: 10
+  
+  # Checkpointing
+  save_best: true
+  save_last: true
+
+# Output Configuration
+output:
+  output_dir: 'outputs'
+  experiment_name: 'endoscopic_iqa_experiment'
+  save_predictions: true
+
+# Device Configuration
+device: 'cuda'  # Options: 'cuda', 'cpu'
+seed: 42
