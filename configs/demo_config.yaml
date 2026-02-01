@@ -1,0 +1,52 @@
+# Model Configuration for Demo
+model:
+  model_path: 'models/pretrained/best_model.pth'
+  model_type: 'lightweight'
+  device: 'cuda'  # 'cuda' or 'cpu'
+
+# Inference Configuration
+inference:
+  image_size: [224, 224]
+  batch_size: 32
+  
+  # Video processing
+  video_sample_rate: 1  # Process every N frames
+  show_preview: true
+  
+  # Quality thresholds
+  thresholds:
+    excellent: 0.8
+    good: 0.6
+    fair: 0.4
+    poor: 0.2
+
+# Traditional Metrics Configuration  
+traditional:
+  use_traditional: true
+  metrics:
+    - 'laplacian_variance'
+    - 'gradient_energy'
+    - 'rms_contrast'
+    - 'entropy'
+    - 'noise_estimate'
+    - 'tenengrad'
+    - 'mscn_std'
+
+# Demo UI Configuration
+demo:
+  title: 'Endoscopic Image Quality Assessment'
+  page_icon: '🔬'
+  layout: 'wide'
+  
+  # Display options
+  show_detailed_metrics: true
+  show_recommendations: true
+  show_confidence: false
+  
+  # Color scheme for quality indicators
+  colors:
+    excellent: 'green'
+    good: 'lightgreen'
+    fair: 'orange'
+    poor: 'red'
+    bad: 'darkred'
