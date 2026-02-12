@@ -130,6 +130,26 @@ uvicorn inference.api.app:app --reload
 
 **NEW:** Compute and store quality metrics for your entire dataset in PostgreSQL!
 
+### Two Approaches Available:
+
+#### 1️⃣ **Traditional IQA** (✅ Works Now!)
+Fast, reliable, no training required:
+```bash
+cd scripts
+python3 test_quality_metrics.py        # Test on 5 images
+python3 compute_quality_metrics.py     # Process all images
+python3 query_quality_metrics.py       # Query results
+```
+
+#### 2️⃣ **Hybrid IQA** (Traditional + Deep Learning)
+Best accuracy when deep learning model is trained:
+```bash
+cd scripts
+python3 test_hybrid_quality_metrics.py       # Test hybrid system
+python3 compute_hybrid_quality_metrics.py    # Process all images
+python3 query_hybrid_quality_metrics.py      # Query results
+```
+
 ### Quick Start with Quality Metrics
 
 ```bash
@@ -141,24 +161,38 @@ cd scripts
 python3 extract_image_metadata.py
 
 # 3. Test quality computation (5 sample images)
-python3 test_quality_metrics.py
+python3 test_quality_metrics.py          # Traditional (recommended for now)
+# OR
+python3 test_hybrid_quality_metrics.py   # Hybrid (DL untrained)
 
 # 4. Compute metrics for all images
-python3 compute_quality_metrics.py
+python3 compute_quality_metrics.py       # Traditional only
+# OR
+python3 compute_hybrid_quality_metrics.py # Hybrid (Traditional + DL)
 
 # 5. Query and analyze results
-python3 query_quality_metrics.py
+python3 query_quality_metrics.py         # Traditional results
+# OR
+python3 query_hybrid_quality_metrics.py  # Hybrid results
 ```
 
 ### What Gets Computed
 
-For each image, the system computes:
-- **Overall Quality Score** (0-1, higher is better)
-- **7 Traditional Metrics**: Laplacian variance, RMS contrast, noise estimate, MSCN std, gradient energy, entropy, tenengrad
-- **Processing metadata**: Time taken, timestamps
+**Traditional Method:**
+- Overall Quality Score (0-1, higher is better)
+- 7 Traditional Metrics: Laplacian variance, RMS contrast, noise estimate, MSCN std, gradient energy, entropy, tenengrad
+- Processing metadata
+
+**Hybrid Method (Traditional + Deep Learning):**
+- Ensemble Score (combined quality)
+- Traditional Score
+- Deep Learning Score
+- All 7 traditional metrics
+- Processing metadata
 
 ### Example Results
 
+**Traditional:**
 ```
 Traditional Quality Score: 0.619
 Detailed Metrics:
@@ -171,6 +205,16 @@ Detailed Metrics:
   • tenengrad:           4943.2533
 ```
 
+**Hybrid:**
+```
+🎯 Quality Scores:
+   Ensemble Score:      0.6234 ⭐
+   Traditional Score:   0.6234
+   Deep Learning Score: 0.5000
+
+📊 Traditional Metrics: (same 7 metrics as above)
+```
+
 ### Use Cases
 
 - Filter training data by quality threshold
@@ -178,8 +222,12 @@ Detailed Metrics:
 - Compare quality across datasets
 - Track quality by anatomical category
 - Export quality reports for analysis
+- Compare traditional vs deep learning predictions
 
-📚 **Full Documentation**: See [QUALITY_METRICS_QUICKSTART.md](QUALITY_METRICS_QUICKSTART.md) for detailed guide
+📚 **Documentation:**
+- [QUALITY_METRICS_QUICKSTART.md](QUALITY_METRICS_QUICKSTART.md) - Traditional IQA guide
+- [HYBRID_IQA_GUIDE.md](HYBRID_IQA_GUIDE.md) - Hybrid system (Traditional + DL) guide
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Quick reference card
 
 ## 📈 Evaluation Metrics
 
