@@ -58,7 +58,10 @@ def test_class_structure():
         assert hasattr(generator, 'calculate_statistics')
         assert hasattr(generator, 'create_visualizations')
         assert hasattr(generator, 'generate_report')
-        print("✓ Required methods exist")
+        assert hasattr(generator, 'classify_quality')
+        assert hasattr(generator, 'calculate_correlation_matrix')
+        assert hasattr(generator, 'add_summary_dashboard')
+        print("✓ Required methods exist (including new methods)")
         
         # Test metrics mapping
         assert 'laplacian_variance' in generator.metrics
@@ -107,6 +110,55 @@ def test_metrics_mapping():
         print(f"✗ Metrics mapping test failed: {e}")
         return False
 
+def test_optimized_statistics():
+    """Test that statistics now return only 5 key metrics instead of 9"""
+    try:
+        import scripts.generate_statistics_report as report_module
+        import pandas as pd
+        
+        test_config = {'host': 'localhost', 'database': 'test'}
+        generator = report_module.StatisticsReportGenerator(test_config)
+        
+        # Create mock dataframe
+        generator.df = pd.DataFrame({
+            'laplacian_variance': [10, 20, 30, 40, 50],
+            'gradient_energy': [1.5, 2.0, 2.5, 3.0, 3.5],
+            'rms_contrast': [0.5, 0.6, 0.7, 0.8, 0.9],
+            'entropy': [5.0, 5.5, 6.0, 6.5, 7.0],
+            'noise_estimate': [0.1, 0.2, 0.3, 0.4, 0.5],
+            'tenengrad': [100, 150, 200, 250, 300],
+            'mscn_std': [1.0, 1.1, 1.2, 1.3, 1.4]
+        })
+        
+        # Calculate statistics
+        stats = generator.calculate_statistics()
+        
+        # Verify each metric has exactly 5 statistics
+        expected_keys = {'count', 'mean', 'std', 'min', 'max'}
+        
+        for metric_name, metric_stats in stats.items():
+            assert set(metric_stats.keys()) == expected_keys, \
+                f"Metric {metric_name} has wrong keys: {metric_stats.keys()}"
+        
+        print("✓ Statistics optimized to 5 key metrics (count, mean, std, min, max)")
+        print(f"  Verified for {len(stats)} metrics")
+        
+        # Verify no old statistics exist
+        old_keys = {'median', '25%', '50%', '75%'}
+        for metric_name, metric_stats in stats.items():
+            for old_key in old_keys:
+                assert old_key not in metric_stats, \
+                    f"Old statistic '{old_key}' still present in {metric_name}"
+        
+        print("✓ Old statistics (median, 25%, 50%, 75%) successfully removed")
+        
+        return True
+    except Exception as e:
+        print(f"✗ Optimized statistics test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def main():
     """Run all tests"""
     print("\n" + "="*60)
@@ -116,7 +168,8 @@ def main():
     tests = [
         ("Import Test", test_imports),
         ("Class Structure Test", test_class_structure),
-        ("Metrics Mapping Test", test_metrics_mapping)
+        ("Metrics Mapping Test", test_metrics_mapping),
+        ("Optimized Statistics Test", test_optimized_statistics)
     ]
     
     passed = 0
