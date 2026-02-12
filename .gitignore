@@ -54,6 +54,12 @@ outputs/
 evaluation_results/
 *.log
 
+# Reports and visualizations
+reports/
+*.docx
+*_hist.png
+*_box.png
+
 # OS
 .DS_Store
 Thumbs.db
