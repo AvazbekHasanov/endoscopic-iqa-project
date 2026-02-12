@@ -1,6 +1,32 @@
 """
-Generate statistical report for image quality metrics from the database.
-Creates a Word document with statistics tables, visualizations, and sample images.
+Generate optimized statistical report for image quality metrics from the database.
+
+Creates a comprehensive Word document with:
+1. Executive Summary Dashboard
+   - Dataset overview
+   - Quality distribution (Good/Fair/Poor)
+   - Key findings
+
+2. Correlation Analysis
+   - Heatmap showing relationships between metrics
+   - Identifies redundant or complementary metrics
+
+3. Detailed Metric Analysis
+   - 5 key statistics per metric (reduced from 9 for clarity):
+     * Count: Sample size
+     * Mean: Average value
+     * Std Dev: Variability/consistency
+     * Min: Lower bound
+     * Max: Upper bound
+   - Distribution histogram
+   - Boxplot for outlier detection
+
+Best practices implemented:
+- Dashboard-ready metrics
+- Focus on actionable insights
+- Reduced cognitive load (5 vs 9 statistics)
+- Visual correlation analysis
+- Quality classification for decision making
 """
 
 import os
@@ -104,7 +130,16 @@ class StatisticsReportGenerator:
                 self.conn.close()
     
     def calculate_statistics(self):
-        """Calculate statistics for each metric"""
+        """
+        Calculate the 5 most useful statistics for each metric.
+        
+        Based on best practices for dashboard metrics:
+        - count: Sample size (data quality indicator)
+        - mean: Central tendency (average quality)
+        - std: Variability (consistency indicator)
+        - min: Lower bound (worst case)
+        - max: Upper bound (best case)
+        """
         stats_summary = {}
         
         for db_col, metric_name in self.metrics.items():
@@ -115,12 +150,8 @@ class StatisticsReportGenerator:
                     stats_summary[metric_name] = {
                         'count': int(data.count()),
                         'mean': float(data.mean()),
-                        'median': float(data.median()),
                         'std': float(data.std()),
                         'min': float(data.min()),
-                        '25%': float(data.quantile(0.25)),
-                        '50%': float(data.quantile(0.5)),
-                        '75%': float(data.quantile(0.75)),
                         'max': float(data.max())
                     }
                 else:
@@ -164,25 +195,35 @@ class StatisticsReportGenerator:
         return hist_path, box_path
     
     def add_statistics_table(self, doc, metric_name, stats):
-        """Add statistics table to Word document"""
-        table = doc.add_table(rows=2, cols=9)
+        """
+        Add optimized statistics table to Word document.
+        
+        Shows 5 key metrics:
+        - count: Total samples
+        - mean: Average value
+        - std: Standard deviation (consistency)
+        - min: Minimum value (worst case)
+        - max: Maximum value (best case)
+        """
+        table = doc.add_table(rows=2, cols=5)
         table.style = 'Light Grid Accent 1'
         
         # Header row
         hdr_cells = table.rows[0].cells
-        headers = ['count', 'mean', 'median', 'std', 'min', '25%', '50%', '75%', 'max']
+        headers = ['Count', 'Mean', 'Std Dev', 'Min', 'Max']
         for i, header in enumerate(headers):
             hdr_cells[i].text = header
         
         # Data row
         data_cells = table.rows[1].cells
-        for i, header in enumerate(headers):
-            value = stats.get(header, 0)
+        stat_keys = ['count', 'mean', 'std', 'min', 'max']
+        for i, key in enumerate(stat_keys):
+            value = stats.get(key, 0)
             # Format count as integer, others as decimal
-            if header == 'count':
+            if key == 'count':
                 data_cells[i].text = str(int(value))
             else:
-                data_cells[i].text = str(round(value, 3))
+                data_cells[i].text = f"{value:.4f}"
     
     def get_sample_images(self, n_samples=None):
         """Get sample image paths from database"""
@@ -195,10 +236,178 @@ class StatisticsReportGenerator:
             return existing_paths
         return []
     
+    def classify_quality(self, stats_summary):
+        """
+        Classify images into quality categories based on metrics.
+        
+        Quality classification criteria:
+        - Good: High sharpness (laplacian, tenengrad), low noise
+        - Fair: Medium values
+        - Poor: Low sharpness, high noise
+        
+        Returns:
+            dict: Quality distribution with counts and percentages
+        """
+        # Define thresholds based on typical endoscopic image characteristics
+        quality_categories = {'Good': 0, 'Fair': 0, 'Poor': 0}
+        
+        if 'laplacian_variance' not in self.df.columns or 'noise_estimate' not in self.df.columns:
+            return quality_categories
+        
+        for _, row in self.df.iterrows():
+            laplacian = row.get('laplacian_variance', 0)
+            noise = row.get('noise_estimate', float('inf'))
+            
+            # Use mean and std for classification thresholds
+            laplacian_mean = stats_summary.get('laplacian', {}).get('mean', 0)
+            laplacian_std = stats_summary.get('laplacian', {}).get('std', 1)
+            noise_mean = stats_summary.get('noise', {}).get('mean', 0)
+            noise_std = stats_summary.get('noise', {}).get('std', 1)
+            
+            # Good quality: high sharpness, low noise
+            if laplacian > (laplacian_mean + 0.5 * laplacian_std) and noise < (noise_mean - 0.3 * noise_std):
+                quality_categories['Good'] += 1
+            # Poor quality: low sharpness or high noise
+            elif laplacian < (laplacian_mean - 0.5 * laplacian_std) or noise > (noise_mean + 0.5 * noise_std):
+                quality_categories['Poor'] += 1
+            else:
+                quality_categories['Fair'] += 1
+        
+        # Calculate percentages
+        total = sum(quality_categories.values())
+        if total > 0:
+            quality_percentages = {
+                k: {'count': v, 'percentage': (v / total) * 100} 
+                for k, v in quality_categories.items()
+            }
+            return quality_percentages
+        
+        return quality_categories
+    
+    def calculate_correlation_matrix(self):
+        """
+        Calculate correlation matrix between metrics.
+        
+        Useful for understanding metric relationships and redundancy.
+        
+        Returns:
+            pandas.DataFrame: Correlation matrix
+        """
+        # Select only numeric columns for metrics
+        metric_cols = [col for col in self.metrics.keys() if col in self.df.columns]
+        
+        if len(metric_cols) < 2:
+            return None
+        
+        correlation_matrix = self.df[metric_cols].corr()
+        
+        # Rename columns to metric names
+        correlation_matrix.columns = [self.metrics.get(col, col) for col in correlation_matrix.columns]
+        correlation_matrix.index = [self.metrics.get(col, col) for col in correlation_matrix.index]
+        
+        return correlation_matrix
+    
+    def create_correlation_heatmap(self, correlation_matrix):
+        """
+        Create correlation heatmap visualization.
+        
+        Args:
+            correlation_matrix: Correlation matrix DataFrame
+            
+        Returns:
+            Path to saved heatmap image
+        """
+        if correlation_matrix is None or correlation_matrix.empty:
+            return None
+        
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, 
+                   fmt='.2f', square=True, linewidths=0.5)
+        plt.title("Metric Correlation Matrix", fontsize=14, fontweight='bold')
+        plt.tight_layout()
+        
+        heatmap_path = self.output_dir / "correlation_heatmap.png"
+        plt.savefig(heatmap_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        return heatmap_path
+    
+    def add_summary_dashboard(self, doc, stats_summary, quality_distribution):
+        """
+        Add executive summary dashboard section.
+        
+        This provides a high-level overview with key insights:
+        - Dataset overview
+        - Quality distribution
+        - Key findings
+        """
+        doc.add_heading("📊 Executive Summary Dashboard", level=1)
+        
+        # Dataset overview
+        doc.add_heading("Dataset Overview", level=2)
+        overview_table = doc.add_table(rows=2, cols=2)
+        overview_table.style = 'Light List Accent 1'
+        
+        overview_table.rows[0].cells[0].text = "Total Images"
+        overview_table.rows[0].cells[1].text = str(len(self.df))
+        overview_table.rows[1].cells[0].text = "Metrics Analyzed"
+        overview_table.rows[1].cells[1].text = str(len(stats_summary))
+        
+        # Quality distribution
+        doc.add_heading("Quality Distribution", level=2)
+        if isinstance(quality_distribution, dict) and any('count' in v for v in quality_distribution.values() if isinstance(v, dict)):
+            quality_table = doc.add_table(rows=4, cols=3)
+            quality_table.style = 'Light Grid Accent 1'
+            
+            # Headers
+            quality_table.rows[0].cells[0].text = "Category"
+            quality_table.rows[0].cells[1].text = "Count"
+            quality_table.rows[0].cells[2].text = "Percentage"
+            
+            # Data rows
+            categories = ['Good', 'Fair', 'Poor']
+            for i, category in enumerate(categories, start=1):
+                data = quality_distribution.get(category, {'count': 0, 'percentage': 0})
+                quality_table.rows[i].cells[0].text = category
+                quality_table.rows[i].cells[1].text = str(data.get('count', 0))
+                quality_table.rows[i].cells[2].text = f"{data.get('percentage', 0):.1f}%"
+        
+        # Key findings
+        doc.add_heading("Key Findings", level=2)
+        findings = []
+        
+        # Analyze sharpness metrics
+        if 'laplacian' in stats_summary:
+            laplacian_mean = stats_summary['laplacian']['mean']
+            findings.append(f"Average sharpness (Laplacian): {laplacian_mean:.4f}")
+        
+        # Analyze noise
+        if 'noise' in stats_summary:
+            noise_mean = stats_summary['noise']['mean']
+            findings.append(f"Average noise level: {noise_mean:.4f}")
+        
+        # Analyze contrast
+        if 'rms_contrast' in stats_summary:
+            contrast_mean = stats_summary['rms_contrast']['mean']
+            findings.append(f"Average contrast (RMS): {contrast_mean:.4f}")
+        
+        # Add findings to document
+        for finding in findings:
+            doc.add_paragraph(f"• {finding}", style='List Bullet')
+        
+        doc.add_page_break()
+    
     def generate_report(self):
-        """Generate complete Word report"""
+        """
+        Generate optimized Word report with dashboard-ready metrics.
+        
+        Report structure:
+        1. Executive Summary Dashboard (overview, quality distribution, key findings)
+        2. Correlation Analysis (relationships between metrics)
+        3. Individual Metric Details (5 key statistics + visualizations)
+        """
         print("\n" + "="*60)
-        print("GENERATING STATISTICAL REPORT")
+        print("GENERATING OPTIMIZED STATISTICAL REPORT")
         print("="*60)
         
         # Connect and fetch data
@@ -213,13 +422,52 @@ class StatisticsReportGenerator:
         print("\n📊 Calculating statistics...")
         stats_summary = self.calculate_statistics()
         
+        # Classify quality
+        print("📈 Classifying image quality...")
+        quality_distribution = self.classify_quality(stats_summary)
+        
+        # Calculate correlations
+        print("🔗 Calculating metric correlations...")
+        correlation_matrix = self.calculate_correlation_matrix()
+        
         # Create Word document
-        print("\n📄 Creating Word document...")
+        print("\n📄 Creating optimized Word document...")
         doc = Document()
         doc.add_heading("Endoskopik Tasvir Sifat Statistikasi", 0)
-        doc.add_paragraph(f"Datasetdagi jami tasvirlar soni: {len(self.df)}\n")
+        doc.add_paragraph(f"Hisobot yaratilgan sana: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        
+        # Add Executive Summary Dashboard
+        print("  Adding executive summary dashboard...")
+        self.add_summary_dashboard(doc, stats_summary, quality_distribution)
+        
+        # Add Correlation Analysis
+        if correlation_matrix is not None:
+            print("  Adding correlation analysis...")
+            doc.add_heading("🔗 Metric Correlation Analysis", level=1)
+            doc.add_paragraph(
+                "Korrelyatsiya tahlili metrikalar orasidagi bog'liqlikni ko'rsatadi. "
+                "Yuqori korrelyatsiya (>0.7) metrikalar o'xshash axborotni beradi."
+            )
+            
+            # Create and add heatmap
+            heatmap_path = self.create_correlation_heatmap(correlation_matrix)
+            if heatmap_path and os.path.exists(heatmap_path):
+                doc.add_picture(str(heatmap_path), width=Inches(6))
+            
+            doc.add_page_break()
         
         # Generate sections for each metric
+        doc.add_heading("📋 Detailed Metric Analysis", level=1)
+        doc.add_paragraph(
+            "Har bir metrika uchun 5 ta asosiy statistik ko'rsatkich:\n"
+            "• Count: Namunalar soni\n"
+            "• Mean: O'rtacha qiymat\n"
+            "• Std Dev: Standart og'ish (izchillik ko'rsatkichi)\n"
+            "• Min: Minimal qiymat (eng yomon holat)\n"
+            "• Max: Maksimal qiymat (eng yaxshi holat)\n"
+        )
+        doc.add_page_break()
+        
         for db_col, metric_name in self.metrics.items():
             if metric_name not in stats_summary:
                 continue
@@ -237,42 +485,47 @@ class StatisticsReportGenerator:
             hist_path, box_path = self.create_visualizations(metric_name, db_col)
             
             if hist_path and os.path.exists(hist_path):
-                doc.add_paragraph("\nHistogram (tasvir sifatining taqsimoti)")
+                doc.add_paragraph("\nTaqsimot grafigi:")
                 doc.add_picture(str(hist_path), width=Inches(5))
             
             if box_path and os.path.exists(box_path):
-                doc.add_paragraph("\nBoxplot (tasvir sifatidagi dispersiya va outlierlar)")
+                doc.add_paragraph("\nBoxplot (dispersiya va outlierlar):")
                 doc.add_picture(str(box_path), width=Inches(5))
-            
-            # Add sample images (if available)
-            sample_images = self.get_sample_images()
-            if sample_images:
-                doc.add_paragraph("\nNamuna tasvirlar:")
-                for img_path in sample_images:
-                    try:
-                        doc.add_picture(img_path, width=Inches(3))
-                        doc.add_paragraph(f"  Path: {img_path}")
-                    except Exception as e:
-                        print(f"    ⚠ Could not add image {img_path}: {e}")
             
             doc.add_page_break()
         
         # Save document
-        output_path = self.output_dir / "Image_Quality_Report.docx"
+        output_path = self.output_dir / "Image_Quality_Report_Optimized.docx"
         doc.save(str(output_path))
         
         print("\n" + "="*60)
-        print(f"✓ Report saved to: {output_path}")
+        print(f"✓ Optimized report saved to: {output_path}")
         print(f"✓ Visualizations saved to: {self.output_dir}")
+        print(f"✓ Report includes:")
+        print(f"  - Executive summary dashboard")
+        print(f"  - Quality classification")
+        print(f"  - Correlation analysis")
+        print(f"  - 5 key statistics per metric (reduced from 9)")
+        print(f"  - Detailed visualizations")
         print("="*60)
 
 
 def main():
-    """Main function"""
-    # Create report generator with configuration options:
-    # - output_dir: Directory to save report and visualizations
-    # - n_sample_images: Number of sample images to include (default: 3)
-    # - histogram_bins: Number of bins for histograms or 'auto' (default: 'auto')
+    """
+    Main function to generate optimized statistical report.
+    
+    Improvements:
+    1. Reduced statistics from 9 to 5 most useful metrics
+    2. Added executive summary dashboard
+    3. Added quality classification (Good/Fair/Poor)
+    4. Added correlation analysis between metrics
+    5. Better organized for dashboard visualization
+    
+    Configuration options:
+    - output_dir: Directory to save report and visualizations
+    - n_sample_images: Number of sample images to include (default: 3)
+    - histogram_bins: Number of bins for histograms or 'auto' (default: 'auto')
+    """
     generator = StatisticsReportGenerator(
         DB_CONFIG, 
         output_dir='reports',
@@ -280,10 +533,16 @@ def main():
         histogram_bins='auto'
     )
     
-    # Generate report
+    # Generate optimized report
     generator.generate_report()
     
-    print("\n✓ Word hisobot tayyor!")
+    print("\n✓ Optimized Word report ready!")
+    print("\n📊 Report Features:")
+    print("  • 5 key statistics (count, mean, std, min, max)")
+    print("  • Executive summary dashboard")
+    print("  • Quality distribution analysis")
+    print("  • Metric correlation matrix")
+    print("  • Detailed visualizations per metric")
 
 
 if __name__ == "__main__":
