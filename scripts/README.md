@@ -98,11 +98,79 @@ python3 scripts/query_quality_metrics.py
 4. Poor quality images (score < 0.3)
 5. Potentially blurry images
 6. Potentially noisy images
+
+### 5. `generate_statistics_report.py`
+**NEW:** Generate comprehensive statistical reports from image quality metrics with Word document output.
+
+**Features:**
+- Connects to PostgreSQL database and fetches hybrid quality metrics
+- Calculates detailed statistics for 7 quality metrics:
+  1. **Laplacian Variance** - Blur detection metric
+  2. **Gradient Energy** - Texture and edge sharpness
+  3. **RMS Contrast** - Image brightness and contrast
+  4. **Entropy** - Information content
+  5. **Noise Estimate** - Noise level measurement
+  6. **Tenengrad** - Overall sharpness measure
+  7. **MSCN Std Dev** - Local contrast assessment
+- Generates visualizations (histograms and boxplots) for each metric
+- Creates formatted statistics tables with count, mean, median, std, min, quartiles, max
+- Includes sample images in the report
+- Outputs a professional Word document (.docx) with all statistics and visualizations
+- Metric descriptions provided in Uzbek language
+
+**Statistics Calculated:**
+- Count: Number of images
+- Mean: Average value
+- Median: Middle value
+- Standard Deviation: Data spread
+- Min/Max: Value range
+- Quartiles (25%, 50%, 75%): Distribution percentiles
+
+**Output:**
+- Word document: `reports/Image_Quality_Report.docx`
+- Visualization images: `reports/*_hist.png` and `reports/*_box.png`
+
+**Usage:**
+```bash
+python3 scripts/generate_statistics_report.py
+```
+
+**Requirements:**
+- python-docx>=0.8.11 (automatically added to requirements.txt)
+- All metrics must be computed first using `compute_hybrid_quality_metrics.py`
+
+**Example Output:**
+```
+============================================================
+GENERATING STATISTICAL REPORT
+============================================================
+
+✓ Connected to database: postgres
+✓ Fetched 17239 records from database
+
+📊 Calculating statistics...
+
+📄 Creating Word document...
+  Processing: laplacian
+  Processing: gradient_energy
+  Processing: rms_contrast
+  Processing: entropy
+  Processing: noise
+  Processing: tenengrad
+  Processing: mscn
+
+============================================================
+✓ Report saved to: reports/Image_Quality_Report.docx
+✓ Visualizations saved to: reports
+============================================================
+
+✓ Word hisobot tayyor!
+```
 7. Quality distribution
 8. Search by filename
 9. Custom quality range
 
-### 5. `query_image_metadata.py`
+### 6. `query_image_metadata.py`
 Query tool to explore the metadata database with various pre-built queries:
 - Dataset statistics
 - Category breakdowns
@@ -121,8 +189,9 @@ python3 scripts/query_image_metadata.py
 ### Initial Setup:
 1. **Configure database** - Edit `db_config.py` with your PostgreSQL credentials
 2. **Extract metadata** - Run `extract_image_metadata.py`
-3. **Compute quality metrics** - Run `compute_quality_metrics.py`
-4. **Analyze results** - Use `query_quality_metrics.py`
+3. **Compute quality metrics** - Run `compute_quality_metrics.py` or `compute_hybrid_quality_metrics.py`
+4. **Analyze results** - Use `query_quality_metrics.py` or `query_hybrid_quality_metrics.py`
+5. **Generate report** - Run `generate_statistics_report.py` to create Word document
 
 ### Step-by-Step Example:
 ```bash
@@ -143,6 +212,9 @@ python3 compute_quality_metrics.py
 
 # Step 5: Analyze full results
 python3 query_quality_metrics.py
+
+# Step 6: Generate statistical report with Word document
+python3 generate_statistics_report.py
 ```
 
 ## Database Schema
@@ -326,7 +398,11 @@ WHERE m.filename = 'your_image.jpg';
   - `opencv-python` - Image processing for quality metrics
   - `numpy` - Numerical computing
   - `scipy` - Scientific computing
+  - `pandas` - Data analysis
+  - `matplotlib` - Plotting
+  - `seaborn` - Statistical visualization
   - `tabulate` - Table formatting for query tools
+  - `python-docx` - Word document generation (for `generate_statistics_report.py`)
 
 ## Notes
 
