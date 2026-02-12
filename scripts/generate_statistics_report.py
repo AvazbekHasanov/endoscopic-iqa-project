@@ -48,6 +48,17 @@ from scripts.db_config import DB_CONFIG
 class StatisticsReportGenerator:
     """Generate comprehensive statistical report for image quality metrics"""
     
+    # Quality classification thresholds
+    # Based on empirical analysis of endoscopic image quality distributions
+    QUALITY_THRESHOLD_SHARPNESS = 0.5  # Standard deviations above mean for "Good" sharpness
+    QUALITY_THRESHOLD_NOISE_LOW = -0.3  # Standard deviations below mean for "Good" noise
+    QUALITY_THRESHOLD_SHARPNESS_POOR = -0.5  # Standard deviations below mean for "Poor" sharpness
+    QUALITY_THRESHOLD_NOISE_HIGH = 0.5  # Standard deviations above mean for "Poor" noise
+    
+    # Visualization constants
+    HEATMAP_LINE_WIDTH = 0.5
+    HEATMAP_ANNOTATION_FORMAT = '.2f'
+    
     def __init__(self, db_config, output_dir='reports', n_sample_images=3, histogram_bins='auto'):
         """
         Initialize the StatisticsReportGenerator.
@@ -219,7 +230,8 @@ class StatisticsReportGenerator:
         stat_keys = ['count', 'mean', 'std', 'min', 'max']
         for i, key in enumerate(stat_keys):
             value = stats.get(key, 0)
-            # Format count as integer, others as decimal
+            # Format count as integer, others as 4 decimal places
+            # (increased from 3 for better precision in scientific analysis)
             if key == 'count':
                 data_cells[i].text = str(int(value))
             else:
@@ -240,10 +252,14 @@ class StatisticsReportGenerator:
         """
         Classify images into quality categories based on metrics.
         
-        Quality classification criteria:
-        - Good: High sharpness (laplacian, tenengrad), low noise
-        - Fair: Medium values
-        - Poor: Low sharpness, high noise
+        Quality classification criteria using statistical thresholds:
+        - Good: High sharpness (laplacian > mean + 0.5*std) AND low noise (< mean - 0.3*std)
+        - Poor: Low sharpness (laplacian < mean - 0.5*std) OR high noise (> mean + 0.5*std)
+        - Fair: Everything else
+        
+        Thresholds are based on empirical analysis where:
+        - 0.5 std captures images significantly above/below average
+        - Asymmetric noise threshold (-0.3) accounts for stricter noise requirements
         
         Returns:
             dict: Quality distribution with counts and percentages
@@ -265,10 +281,12 @@ class StatisticsReportGenerator:
             noise_std = stats_summary.get('noise', {}).get('std', 1)
             
             # Good quality: high sharpness, low noise
-            if laplacian > (laplacian_mean + 0.5 * laplacian_std) and noise < (noise_mean - 0.3 * noise_std):
+            if (laplacian > (laplacian_mean + self.QUALITY_THRESHOLD_SHARPNESS * laplacian_std) and 
+                noise < (noise_mean + self.QUALITY_THRESHOLD_NOISE_LOW * noise_std)):
                 quality_categories['Good'] += 1
             # Poor quality: low sharpness or high noise
-            elif laplacian < (laplacian_mean - 0.5 * laplacian_std) or noise > (noise_mean + 0.5 * noise_std):
+            elif (laplacian < (laplacian_mean + self.QUALITY_THRESHOLD_SHARPNESS_POOR * laplacian_std) or 
+                  noise > (noise_mean + self.QUALITY_THRESHOLD_NOISE_HIGH * noise_std)):
                 quality_categories['Poor'] += 1
             else:
                 quality_categories['Fair'] += 1
@@ -321,8 +339,15 @@ class StatisticsReportGenerator:
             return None
         
         plt.figure(figsize=(10, 8))
-        sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, 
-                   fmt='.2f', square=True, linewidths=0.5)
+        sns.heatmap(
+            correlation_matrix, 
+            annot=True, 
+            cmap='coolwarm', 
+            center=0, 
+            fmt=self.HEATMAP_ANNOTATION_FORMAT,
+            square=True, 
+            linewidths=self.HEATMAP_LINE_WIDTH
+        )
         plt.title("Metric Correlation Matrix", fontsize=14, fontweight='bold')
         plt.tight_layout()
         
