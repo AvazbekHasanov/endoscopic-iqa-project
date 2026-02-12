@@ -22,12 +22,14 @@ from scripts.db_config import DB_CONFIG
 class StatisticsReportGenerator:
     """Generate comprehensive statistical report for image quality metrics"""
     
-    def __init__(self, db_config, output_dir='reports'):
+    def __init__(self, db_config, output_dir='reports', n_sample_images=3, histogram_bins='auto'):
         self.db_config = db_config
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         self.conn = None
         self.df = None
+        self.n_sample_images = n_sample_images
+        self.histogram_bins = histogram_bins  # Can be int or 'auto'
         
         # Metric names mapping (database column names)
         self.metrics = {
@@ -129,9 +131,12 @@ class StatisticsReportGenerator:
             print(f"⚠ No data available for {metric_name}")
             return None, None
         
+        # Determine bins (use auto or configured value)
+        bins = self.histogram_bins if self.histogram_bins != 'auto' else min(50, max(10, len(data) // 100))
+        
         # Create histogram
         plt.figure(figsize=(6, 4))
-        sns.histplot(data, bins=20, kde=True, color='skyblue')
+        sns.histplot(data, bins=bins, kde=True, color='skyblue')
         plt.title(f"{metric_name} distribution")
         plt.xlabel(metric_name)
         plt.ylabel("Frequency")
@@ -164,10 +169,16 @@ class StatisticsReportGenerator:
         data_cells = table.rows[1].cells
         for i, header in enumerate(headers):
             value = stats.get(header, 0)
-            data_cells[i].text = str(round(value, 3))
+            # Format count as integer, others as decimal
+            if header == 'count':
+                data_cells[i].text = str(int(value))
+            else:
+                data_cells[i].text = str(round(value, 3))
     
-    def get_sample_images(self, n_samples=3):
+    def get_sample_images(self, n_samples=None):
         """Get sample image paths from database"""
+        if n_samples is None:
+            n_samples = self.n_sample_images
         if 'file_path' in self.df.columns:
             sample_paths = self.df['file_path'].dropna().head(n_samples)
             # Filter existing paths
@@ -225,7 +236,7 @@ class StatisticsReportGenerator:
                 doc.add_picture(str(box_path), width=Inches(5))
             
             # Add sample images (if available)
-            sample_images = self.get_sample_images(n_samples=3)
+            sample_images = self.get_sample_images()
             if sample_images:
                 doc.add_paragraph("\nNamuna tasvirlar:")
                 for img_path in sample_images:
