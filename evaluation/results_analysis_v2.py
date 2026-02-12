@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from scipy import stats
 from datetime import datetime
+from math import pi
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -376,8 +377,6 @@ class ResultsAnalyzer:
         axes[0, 1].grid(True, alpha=0.3)
         
         # 3. Radar chart of normalized features
-        from math import pi
-        
         # Normalize features to [0, 1]
         normalized_features = {}
         for feature in features:
