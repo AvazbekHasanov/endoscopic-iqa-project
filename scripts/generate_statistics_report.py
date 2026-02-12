@@ -23,6 +23,15 @@ class StatisticsReportGenerator:
     """Generate comprehensive statistical report for image quality metrics"""
     
     def __init__(self, db_config, output_dir='reports', n_sample_images=3, histogram_bins='auto'):
+        """
+        Initialize the StatisticsReportGenerator.
+        
+        Args:
+            db_config (dict): Database configuration with host, port, database, user, password
+            output_dir (str): Directory to save the report and visualizations (default: 'reports')
+            n_sample_images (int): Number of sample images to include in report (default: 3)
+            histogram_bins (int or str): Number of bins for histograms or 'auto' for automatic (default: 'auto')
+        """
         self.db_config = db_config
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
@@ -260,8 +269,16 @@ class StatisticsReportGenerator:
 
 def main():
     """Main function"""
-    # Create report generator
-    generator = StatisticsReportGenerator(DB_CONFIG, output_dir='reports')
+    # Create report generator with configuration options:
+    # - output_dir: Directory to save report and visualizations
+    # - n_sample_images: Number of sample images to include (default: 3)
+    # - histogram_bins: Number of bins for histograms or 'auto' (default: 'auto')
+    generator = StatisticsReportGenerator(
+        DB_CONFIG, 
+        output_dir='reports',
+        n_sample_images=3,
+        histogram_bins='auto'
+    )
     
     # Generate report
     generator.generate_report()
